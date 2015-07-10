@@ -13,6 +13,7 @@ import ncbi
 import pdom
 
 def get_args():
+    """Parse command-line arguments."""
     desc = 'Execute the main HymHub build process'
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-r', '--root', metavar='DIR', default='.',
@@ -42,6 +43,9 @@ def get_args():
 
 
 def load_configs(species_list, rootdir='.'):
+    """
+    Load configuration files for each species.
+    """
     configs = dict()
     for species in species_list:
         configfile = '%s/species/%s/data.yml' % (rootdir, species)
@@ -50,7 +54,40 @@ def load_configs(species_list, rootdir='.'):
     return configs
 
 
-def main(args=get_args()):
+def download_task(config, rootdir='.', logstream=sys.stderr):
+    """
+    Run the download task of the build procedure.
+
+    Genome sequence, genome annotations, and protein sequences must be
+    downloaded for every species. The download procedure depends on the source
+    of the data.
+    """
+    source = config['source']
+    assert source in ['ncbi', 'ncbi_flybase', 'custom']
+
+    if source == 'ncbi':
+        gdnatype = config['genomeseq']['type']
+        if gdnatype == 'scaffolds':
+            dnafunc = ncbi.download_scaffolds
+        elif gdnatype == 'chromosomes':
+            dnafunc = ncbi.download_chromosomes
+        dnafunc(config, rootdir=rootdir, logstream=logstream)
+        ncbi.download_annotation(config, rootdir=rootdir, logstream=logstream)
+        ncbi.download_proteins(config, rootdir=rootdir, logstream=logstream)
+
+    elif source == 'ncbi_flybase':
+        ncbi.download_flybase(config, rootdir=rootdir, logstream=logstream)
+
+    elif source == 'custom':
+        handler = config['download_handler']
+        # Add to this list if more custom handlers are needed
+        assert handler in ['download_pdom']
+        if handler == 'download_pdom':
+            pdom.download(config, rootdir=rootdir, logstream=logstream)
+
+
+def main(args):
+    """Main build procedure."""
     if not args.download and not args.format and not args.types and \
             not args.stats and not args.cleanup:
         print >> sys.stderr, 'please specify build task(s)'
@@ -67,37 +104,12 @@ def main(args=get_args()):
 
     if args.download:
         for species in args.species_list:
-            source = configs[species]['source']
-            assert source in ['ncbi', 'ncbi_flybase', 'custom']
-
-            if source == 'ncbi':
-                gdnatype = configs[species]['genomeseq']['type']
-                if gdnatype == 'scaffolds':
-                    dnafunc = ncbi.download_scaffolds
-                elif gdnatype == 'chromosomes':
-                    dnafunc = ncbi.download_chromosomes
-                dnafunc(configs[species], rootdir=args.root, logstream=args.logfile)
-
-                ncbi.download_annotation(configs[species], rootdir=args.root,
-                                         logstream=args.logfile)
-                ncbi.download_proteins(configs[species], rootdir=args.root,
-                                       logstream=args.logfile)
-
-            elif source == 'ncbi_flybase':
-                ncbi.download_flybase(configs[species], rootdir=args.root,
-                                      logstream=args.logfile)
-
-            elif source == 'custom':
-                handler = configs[species]['download_handler']
-                # Add to this list if more custom handlers are needed
-                assert handler in ['download_pdom']
-                if handler == 'download_pdom':
-                    pdom.download(configs[species], rootdir=args.root,
-                                  logstream=args.logfile)
+            download_task(configs[species], rootdir=args.root,
+                          logstream=args.logfile)
 
     for species in args.species_list:
         pass
 
 
 if __name__ == '__main__':
-    main()
+    main(get_args())
