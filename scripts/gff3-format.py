@@ -37,6 +37,8 @@ if __name__ == '__main__':
             accmatch = re.search('GeneID:([^;,\n]+)', line)
             if args.mode == 'pdom':
                 accmatch = re.search('Name=([^;\n]+)', line)
+            elif args.mode == 'pcan':
+                accmatch = re.search('ID=([^;\n]+)', line)
             assert accmatch, 'Cannot parse GeneID: %s' % line.split('\t')[-1]
             line += ';accession=%s' % accmatch.group(1)
 
@@ -44,7 +46,7 @@ if __name__ == '__main__':
                         'primary_transcript']:
             if ('\t%s\t' % rnatype) in line:
                 accmatch = re.search('transcript_id=([^;,\n]+)', line)
-                if args.mode == 'pdom':
+                if args.mode in ['pdom', 'pcan']:
                     accmatch = re.search('ID=([^;\n]+)', line)
                 if not accmatch:
                     genematch = re.search('GeneID:([^;,\n]+)', line)
@@ -55,6 +57,8 @@ if __name__ == '__main__':
                 else:
                     rna_type = line.split('\t')[2]
                     accession = '%s:%s' % (genematch.group(1), rna_type)
+                if args.mode == 'pcan':
+                    line += ';Name=%s' % accession
                 line += ';accession=%s' % accession
                 rnaid = re.search('ID=([^;\n]+)', line).group(1)
                 rnaid_to_accession[rnaid] = accession
